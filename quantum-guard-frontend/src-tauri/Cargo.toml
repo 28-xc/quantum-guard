@@ -1,0 +1,39 @@
+[package]
+name = "quantum-guard"
+version = "0.1.0"
+description = "QuantumGuard - E2E zero-trust encrypted file transfer"
+authors = ["QuantumGuard"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.70"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2.10", features = ["custom-protocol"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-shell = "2"
+aes-gcm = "0.10"
+base64 = "0.22"
+pbkdf2 = { version = "0.12", features = ["simple"] }
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["sync", "rt-multi-thread"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+# 桌面：可执行文件入口
+[[bin]]
+name = "quantum-guard"
+path = "src/main.rs"
+
+# 库：桌面与 Android 共用，Android 通过 cdylib/staticlib 加载
+[lib]
+name = "quantum_guard"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "src/lib.rs"

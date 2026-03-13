@@ -1,0 +1,72 @@
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.conda/
+
+# Environment & secrets (do not commit)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Database & runtime data
+*.db
+*.sqlite3
+data/
+# Or only ignore sensitive subdirs (if you prefer to track empty data/):
+# data/encrypted_files/
+# data/*.db
+
+# IDE - PyCharm / IntelliJ
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+*.sw?
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+*.cover
+.hypothesis/
+
+# Distribution / build
+build/
+dist/
+*.egg
+*.egg-info/
+.eggs/
+*.manifest
+*.spec
+
+# mypy / type check
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+logs/
