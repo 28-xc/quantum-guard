@@ -211,7 +211,7 @@ async function startUpload() {
     </div>
 
     <div class="crypto-console" v-if="auditLog.length > 0">
-      <div class="crypto-console-title">⚡ 硬核密码学控制台 · 实时审计日志</div>
+      <div class="crypto-console-title">⚡ 控制台 · 实时审计日志</div>
       <div class="crypto-console-body">
         <div v-for="(line, idx) in auditLog" :key="idx" class="crypto-console-line">{{ line }}</div>
       </div>

@@ -108,6 +108,9 @@
   - 先通过 `showSaveFilePicker` 或 StreamSaver 取得 `WritableStream`，再启动 3 个拉取+解密任务与 1 个写盘循环。
   - 解密任务从共享 `nextIndexToFetch` 取块号，拉取→解密后向队列 `enqueue({ index, data })`；写盘循环 `dequeue()` 后按块号顺序写入（乱序块暂存 `pending` Map），写满 `total` 后关闭流。
   - 并发数 `MAX_DOWNLOAD_CONCURRENCY = 3`，与上传一致；**不再全量进内存**，避免 1.8GB 级 OOM。
+- **Android（Content URI）**：
+  - 当保存路径为 `content://`（系统文档选择器返回）时，Rust 无法直接写入；由前端使用 `@tauri-apps/plugin-fs` 的 `writeFile(path, ReadableStream, { create: true })`。
+  - 在 JS 侧构造 `ReadableStream`：`pull` 中按序拉取块、解密（`CryptoStream.decryptChunk`）并 `enqueue` 明文；`writeFile` 消费该流并写入 Content URI，由系统 DocumentProvider 落盘到用户所选位置。
 
 ### 3.5 后端下发单块（file_transfer.py）
 
@@ -117,8 +120,9 @@
 
 ## 四、密文长度与校验
 
-- **单块密文长度**：明文块 ≤ 20MB，密文 = 明文 + 12(IV) + 16(tag)。若已知明文总长 `file_size` 与块数 `total`，则密文总长 = `file_size + total * 28`（最后一块若非整 20MB 仍按实际密文长度）。
-- **FileDownloader（Tauri）**：若存在 `file_size`，会校验 `sizeState.totalBytes === file_size + total * 28`，防止缺块或篡改导致长度异常。
+- **单块密文长度**：明文块 ≤ 20MB（前端当前 5MB），密文 = 明文 + 12(IV) + 16(tag)。若已知明文总长 `file_size` 与块数 `total`，则密文总长 = `file_size + total * 28`（最后一块若非整块仍按实际密文长度）。
+- **FileDownloader（Tauri）**：若存在 `file_size`，可做密文总长或明文总长校验，防止缺块或篡改。
+- **FileDownloader（浏览器/Android）**：若元数据 `file_size` 与最终写入字节数不一致，仅记录日志提示，不阻断流程，以实际写入为准（兼容元数据为密文长度或跨端差异）。
 
 ---
 
@@ -126,7 +130,7 @@
 
 ```
 加密上传:
-  文件 → 分块(20MB) → [ 读块 → 流式SHA256 → AES-GCM加密(AAD=fileId_chunkIndex) → IV||密文 ] × N
+  文件 → 分块(5MB) → [ 读块 → 流式SHA256 → AES-GCM加密(AAD=fileId_chunkIndex) → IV||密文 ] × N
        → 整文件 SHA256 → DSA 签名(fileId||kemCiphertext||fileHash) → finalize 元数据
   后端: 每块存为 file_id 目录下 chunk_index 文件；finalize 写 FileMetadata。
 
@@ -148,7 +152,7 @@
 | 上传 | `src/core/cryptoEngine.ts` | generateEncryptionSuite（KEM + HKDF）、deriveAesKeyFromSharedSecretAndFileId |
 | 加解密 | `src/core/crypto-stream.ts` | CHUNK_SIZE、deriveAesKey、importAesKey、encryptChunk、decryptChunk（含旧版 AAD） |
 | 下载 | `src/services/downloadService.ts` | 元数据、KEM 解封、按块拉取与解密、浏览器/Tauri 流式写盘、验签 |
-| 下载 UI | `src/components/FileDownloader.vue` | 从 meta/列表取元数据、Tauri 单次 stream_decrypt_batch、浏览器流式写盘+3 并发、兼容密钥与 AAD |
+| 下载 UI | `src/components/FileDownloader.vue` | 从 meta/列表取元数据；Tauri 单次 stream_decrypt_batch；浏览器流式写盘+3 并发；Android 使用 plugin-fs writeFile(ReadableStream) 写 content URI；兼容密钥与 AAD |
 | 后端 | `app/routers/file_transfer.py` | upload_chunk、finalize、download chunk、CHUNK_PLAINTEXT_SIZE/CHUNK_PHYSICAL_SIZE |
 | Tauri | `src-tauri/src/lib.rs` | stream_decrypt_batch（3 路拉取+解密+顺序写盘+预分配）、decrypt_block、decrypt-progress 事件；保留 stream_decrypt_* 兼容 |
 

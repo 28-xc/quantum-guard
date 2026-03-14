@@ -85,10 +85,11 @@ npm run build
 | **uploadService.ts** | 拉取接收方公钥、生成加密套件、5MB 分块、流式 SHA-256、3 路并发上传、DSA 签名、finalize |
 | **downloadService.ts** | 元数据拉取、KEM 解封、HKDF 派生 AES、按块拉取与解密；浏览器/Tauri 双路径写盘 |
 
-### 3.3 大文件解密（Tauri 与浏览器）
+### 3.3 大文件解密（Tauri、浏览器与 Android）
 
-- **Tauri**：`FileDownloader.vue` 单次调用 `invoke('stream_decrypt_batch', {...})`；Rust 内 3 路并发拉取、解密并顺序写盘，可选文件预分配；前端监听 `decrypt-progress` 更新进度。详见 `docs/LARGE_FILE_CRYPTO_FLOW.md`。
+- **Tauri 桌面**：`FileDownloader.vue` 单次调用 `invoke('stream_decrypt_batch', {...})`；Rust 内 3 路并发拉取、解密并顺序写盘，可选文件预分配；前端监听 `decrypt-progress` 更新进度。详见 `docs/LARGE_FILE_CRYPTO_FLOW.md`。
 - **浏览器**：`showSaveFilePicker` 或 StreamSaver 取得 `WritableStream`，3 路并发拉取+解密，单写循环按块号顺序写盘，乱序块暂存于 `pending` Map，避免全量进内存。
+- **Android（Content URI）**：当用户选择的保存路径为 `content://` 时，不调用 Rust 写盘；使用 `@tauri-apps/plugin-fs` 的 `writeFile(path, ReadableStream)`，在 JS 侧按块拉取并解密后推入 `ReadableStream`，由插件写入用户所选目录。
 
 ---
 

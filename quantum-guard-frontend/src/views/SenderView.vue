@@ -52,6 +52,7 @@
       <h3>3. 极速加密传输信道</h3>
       <p class="success-text">
         🔒 安全通道已锁定。当前目标: <strong>{{ session.targetUserId }}</strong>
+        <button type="button" class="switch-target-btn" @click="switchRecipient">更换接收方</button>
       </p>
       <p v-if="lastSentFileId" class="sent-tracking-hint">
         ✅ 本次发送追踪号: <code class="sent-tracking-id">{{ lastSentFileId }}</code>
@@ -182,6 +183,14 @@ function goSentPage(p: number) {
 function onUploadSuccess(fileId: string) {
   lastSentFileId.value = fileId;
   fetchSentList();
+}
+
+/** 更换接收方：清空当前目标与 TOFU 状态，回到步骤 1 重新选择接收方，无需退出登录。 */
+function switchRecipient() {
+  session.destroySession();
+  targetId.value = '';
+  statusText.value = '';
+  errorText.value = '';
 }
 
 async function copySentId(id: string) {
@@ -396,6 +405,29 @@ button {
 
 .success-text {
   color: #34d399;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.switch-target-btn {
+  margin-left: 8px;
+  padding: 6px 12px;
+  font-size: 0.85em;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.2);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.switch-target-btn:hover {
+  background: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.5);
 }
 
 .fingerprint-box {

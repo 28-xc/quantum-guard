@@ -23,6 +23,7 @@
             :disabled="isGenerating"
             autocomplete="new-password"
           />
+          <p v-if="passwordStrengthHint" class="password-strength-hint">{{ passwordStrengthHint }}</p>
         </div>
         <div class="password-wrap">
           <input
@@ -36,7 +37,16 @@
         </div>
 
         <div class="email-panel">
-          <div class="email-panel-inner">
+          <button
+            type="button"
+            class="email-panel-toggle"
+            :disabled="isGenerating"
+            @click="emailPanelExpanded = !emailPanelExpanded"
+          >
+            <span class="toggle-icon">{{ emailPanelExpanded ? '▼' : '▶' }}</span>
+            <span>{{ emailPanelExpanded ? '收起绑定邮箱' : '绑定安全邮箱（选填）' }}</span>
+          </button>
+          <div v-show="emailPanelExpanded" class="email-panel-inner">
             <input
               v-model.trim="email"
               type="email"
@@ -85,7 +95,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useRouter, RouterLink } from 'vue-router';
 import { KemEngine } from '../core/kem-engine';
 import { DsaEngine } from '../core/dsa-engine';
@@ -109,11 +119,26 @@ const password = ref('');
 const confirmPassword = ref('');
 const email = ref('');
 const code = ref('');
+const emailPanelExpanded = ref(false);
 const codeCooldown = ref(0);
 const isGenerating = ref(false);
 const statusText = ref('');
 const errorText = ref('');
 const alreadyHint = ref('');
+
+/** 弱密码时仅提示建议，不阻止注册。 */
+function getPasswordStrengthHint(pwd: string): string {
+  if (!pwd || pwd.length === 0) return '';
+  if (pwd.length < 8) return '建议：使用至少 8 位密码，可包含字母与数字以提高安全性';
+  const hasLower = /[a-z]/.test(pwd);
+  const hasUpper = /[A-Z]/.test(pwd);
+  const hasDigit = /\d/.test(pwd);
+  const hasSpecial = /[^a-zA-Z0-9]/.test(pwd);
+  const variety = [hasLower, hasUpper, hasDigit, hasSpecial].filter(Boolean).length;
+  if (variety < 2) return '建议：使用更强密码（含大小写、数字或符号）以提升安全性';
+  return '';
+}
+const passwordStrengthHint = computed(() => getPasswordStrengthHint(password.value));
 
 let codeCooldownTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -155,14 +180,6 @@ async function sendCode() {
   }
 }
 
-function validatePasswordStrength(pwd: string): string | null {
-  if (pwd.length < 8) return '密码至少需 8 位';
-  const hasLetter = /[A-Za-z]/.test(pwd);
-  const hasDigit = /\d/.test(pwd);
-  if (!hasLetter || !hasDigit) return '建议包含字母和数字，以提高安全性';
-  return null;
-}
-
 async function doRegister() {
   errorText.value = '';
   statusText.value = '';
@@ -181,11 +198,7 @@ async function doRegister() {
     errorText.value = '请先输入密码';
     return;
   }
-  const pwdHint = validatePasswordStrength(pwd);
-  if (pwdHint) {
-    errorText.value = pwdHint;
-    return;
-  }
+  /* 弱密码仅提示建议（见 passwordStrengthHint），不强制拦截注册 */
   if (pwd !== confirm) {
     errorText.value = '两次输入的密码不一致';
     return;
@@ -382,6 +395,13 @@ async function doRegister() {
   width: 100%;
 }
 
+.password-strength-hint {
+  margin: 6px 0 0 0;
+  font-size: 0.8rem;
+  color: rgba(251, 191, 36, 0.95);
+  line-height: 1.4;
+}
+
 .email-panel {
   border: 1px solid rgba(34, 211, 238, 0.25);
   border-radius: 10px;
@@ -393,17 +413,39 @@ async function doRegister() {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  padding: 10px 0;
+  margin: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
   cursor: pointer;
   color: rgba(148, 163, 184, 0.95);
   font-size: 0.9rem;
+  text-align: left;
+  transition: color 0.2s, background 0.2s;
 }
 
-.email-panel-toggle input {
-  width: auto;
+.email-panel-toggle:hover:not(:disabled) {
+  color: #22d3ee;
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.email-panel-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.toggle-icon {
+  font-size: 0.75rem;
+  color: rgba(34, 211, 238, 0.8);
+  min-width: 1em;
 }
 
 .email-panel-inner {
   margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(34, 211, 238, 0.15);
   display: flex;
   flex-direction: column;
   gap: 10px;

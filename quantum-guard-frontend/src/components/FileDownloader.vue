@@ -66,7 +66,7 @@
     </div>
 
     <div class="crypto-console" v-if="auditLog.length > 0">
-      <div class="crypto-console-title">⚡ 硬核密码学控制台 · 实时审计日志</div>
+      <div class="crypto-console-title">⚡ 控制台 · 实时审计日志</div>
       <div class="crypto-console-body">
         <div v-for="(line, idx) in auditLog" :key="idx" class="crypto-console-line">{{ line }}</div>
       </div>
@@ -325,16 +325,92 @@ async function decryptAndDownload(file: InboxFile) {
         statusText.value = '已取消保存';
         return;
       }
-      // Android 上 save 可能返回 content URI，Rust 的 File::create 无法使用，改用应用可写目录
+      // Android 上 save 返回 content:// URI，不能直接交给 Rust 的 File::create。
+      // 对于这种情况，改为在前端使用 @tauri-apps/plugin-fs 直接对 content URI 进行流式写入，
+      // 解密逻辑与浏览器分支一致，但落盘由 Android 的 ContentResolver 完成，真正保存到用户选定的位置。
       if (path.startsWith('content:')) {
-        try {
-          const dir = await invoke<string>('get_decrypt_output_dir');
-          path = (dir.endsWith('/') ? dir : dir + '/') + outputName;
-          log('[系统日志] 使用应用可写目录落盘（Android content URI 不可直接写）: ' + path);
-        } catch (e: any) {
-          log('[系统日志] 🚨 获取可写目录失败: ' + (e?.message ?? e));
-          throw e;
+        log('[系统日志] 检测到 Android 内容 URI，使用 plugin-fs writeFile(ReadableStream) 一次性写入以正确提交到 DocumentProvider');
+        const { writeFile } = await import('@tauri-apps/plugin-fs');
+        const expectedPlain = typeof file.file_size === 'number' && file.file_size >= 0 ? file.file_size : null;
+        sizeState.totalBytes = 0;
+        let nextChunkIndex = 0;
+        const stream = new ReadableStream<Uint8Array>({
+          async pull(controller) {
+            const i = nextChunkIndex;
+            if (i >= total) {
+              controller.close();
+              return;
+            }
+            log(`[网络层] 准备下载分块 ${i}（Android 内容 URI）`);
+            const res = await ensureOk(
+              await apiFetch(
+                `${API_BASE}/files/download/${encodeURIComponent(file.file_id)}/chunk/${i}`
+              ),
+              `下载分块 ${i}`
+            );
+            const buf = await res.arrayBuffer();
+            if (buf.byteLength < 13) {
+              controller.error(new Error(`分块长度异常: chunk=${i}, size=${buf.byteLength}`));
+              return;
+            }
+            const iv = new Uint8Array(buf.slice(0, 12));
+            const ciphertext = buf.slice(12);
+            let plain: ArrayBuffer;
+            try {
+              plain = await CryptoStream.decryptChunk(
+                ciphertext,
+                keyState.aesKey,
+                iv,
+                fileIdForCrypto,
+                i
+              );
+            } catch (e: any) {
+              if (
+                i === 0 &&
+                !keyState.usedLegacyKey &&
+                (e?.name === 'OperationError' || String(e?.message || '').includes('decrypt'))
+              ) {
+                log('[对称引擎] 使用兼容模式（旧版直接密钥）重试...');
+                keyState.aesKey = await CryptoStream.importAesKey(secret);
+                keyState.usedLegacyKey = true;
+                plain = await CryptoStream.decryptChunk(
+                  ciphertext,
+                  keyState.aesKey,
+                  iv,
+                  fileIdForCrypto,
+                  i
+                );
+              } else {
+                controller.error(e);
+                return;
+              }
+            }
+            sizeState.totalBytes += plain.byteLength;
+            nextChunkIndex = i + 1;
+            const current = nextChunkIndex;
+            progress.value = total > 0 ? Math.round((current / total) * 100) : 0;
+            statusText.value = `4/5 解密落盘中 (${current}/${total})...`;
+            log(`[网络层] 物理块 ${i} 已写入`);
+            controller.enqueue(new Uint8Array(plain));
+            await new Promise<void>((r) => setTimeout(r, 0));
+          }
+        });
+        statusText.value = '4/5 正在拉取并解密落盘（Android 内容 URI）...';
+        await writeFile(path, stream, { create: true });
+        if (expectedPlain !== null) {
+          if (sizeState.totalBytes === expectedPlain) {
+            log(
+              `[系统日志] 明文总长校验: 期望 ${expectedPlain} Bytes，实际 ${sizeState.totalBytes} Bytes`
+            );
+          } else {
+            log(
+              `[系统日志] 提示: 写入 ${sizeState.totalBytes} Bytes，元数据 file_size=${expectedPlain}，已按实际写入完成`
+            );
+          }
         }
+        log(`[系统日志] ✅ 解密成功，文件已落盘。路径：${path}`);
+        statusText.value = `✅ 解密成功！已保存到：${path}`;
+        return;
       }
       statusText.value = '4/5 正在拉取并解密落盘（Rust 并行流水线 3 路）...';
       log('[网络层] Rust 侧并行拉取+解密+顺序写盘，前端单次调用 stream_decrypt_batch');
