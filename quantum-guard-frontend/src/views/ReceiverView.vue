@@ -102,16 +102,17 @@ function closeResetConfirm() {
 async function confirmResetIdentity() {
   if (isResetting.value) return;
   isResetting.value = true;
+  showResetConfirm.value = false;
+  const uid = myId.value.trim();
   try {
-    await KeyStorage.clearKeys();
-    localStorage.removeItem(MY_ID_STORAGE_KEY);
-    session.resetAll();
-    await router.replace('/');
-  } catch {
-    isResetting.value = false;
-  } finally {
-    showResetConfirm.value = false;
+    if (uid) await KeyStorage.clearKeys(uid);
+  } catch (e) {
+    console.warn('[重置本地身份] 清除 IndexedDB 密钥失败，继续执行登出与跳转', e);
   }
+  localStorage.removeItem(MY_ID_STORAGE_KEY);
+  session.resetAll();
+  await router.replace('/');
+  isResetting.value = false;
 }
 </script>
 
