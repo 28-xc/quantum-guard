@@ -14,7 +14,21 @@
 
 ---
 
-## 2. 系统架构
+
+## 2. 安装包下载
+
+为了方便评审与测试，我们在项目根目录的 `release` 文件夹中提供了预编译的客户端程序，开箱即用，无需配置前端开发环境：
+
+| 平台 | 文件路径 | 说明 |
+|------|----------|------|
+| **Android** | `release/QuantumGuard.apk` | 适配安卓设备的安装包 |
+| **Windows** | `release/QuantumGuard_Setup.exe` | 基于 Tauri 2 构建的 Windows 桌面端独立安装包。 |
+
+
+---
+
+
+## 3. 系统架构
 
 ```mermaid
 flowchart LR
