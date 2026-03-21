@@ -24,7 +24,6 @@
 | **Android** | `release/QuantumGuard.apk` | 适配安卓设备的安装包 |
 | **Windows** | `release/QuantumGuard_Setup.exe` | 基于 Tauri 2 构建的 Windows 桌面端独立安装包。 |
 
-> **💡 提示**：直接运行上述客户端即可体验端到端加密流程。若需自行部署完整环境（含服务端），请参阅后文的文档索引及后端部署指南。
 
 ---
 
